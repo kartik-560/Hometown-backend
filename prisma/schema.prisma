@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model categories {
+  id               Int          @id @default(autoincrement())
+  name             String
+  parent_id        Int?
+  comment          String?
+  created_at       DateTime?    @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime?    @default(now()) @db.Timestamptz(6)
+  categories       categories?  @relation("categoriesTocategories", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  other_categories categories[] @relation("categoriesTocategories")
+  products         products[]
+}
+
+model products {
+  id                              String      @id @db.VarChar
+  name                            String
+  brand                           String?
+  category_id                     Int?
+  original_price                  Decimal?    @db.Decimal
+  discounted_price                Decimal?    @db.Decimal
+  discount_percentage             Int?
+  price_includes_tax              Boolean?
+  shipping_included               Boolean?
+  shipping_calculated_at_checkout Boolean?
+  store_exclusive                 Boolean?
+  online_available                Boolean?
+  store_purchase_only             Boolean?
+  seater_count                    Int?
+  color                           String?
+  material                        String?
+  warranty_period                 String?
+  delivery                        String?
+  installation                    String?
+  stock_status                    String?
+  recurring_purchase_info         String?
+  note                            String?
+  product_care_instructions       String?
+  return_and_cancellation_policy  String?
+  style_pincode_prompt            Boolean?
+  store_locations_url             String?
+  image_urls                      String[]
+  features                        Json?
+  created_at                      DateTime?   @default(now()) @db.Timestamptz(6)
+  updated_at                      DateTime?   @default(now()) @db.Timestamptz(6)
+  categories                      categories? @relation(fields: [category_id], references: [id], onUpdate: NoAction)
+}
