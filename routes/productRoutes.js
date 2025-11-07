@@ -8,26 +8,28 @@ const prisma = new PrismaClient();
 const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
+    console.log('Authorization header received:', authHeader ? 'YES' : 'NO');
 
-    if (!authHeader || !authHeader.startsWith("Basic ")) {
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
       req.user = null;
       req.isAdmin = false;
-
+      console.log('No auth header - isAdmin: false');
       return next();
     }
 
     const base64Credentials = authHeader.slice(6);
-
-    const credentials = Buffer.from(base64Credentials, "base64").toString(
-      "utf8"
-    );
-
-    const [phone, password] = credentials.split(":");
+    console.log('Base64 credentials:', base64Credentials);
+    
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('utf8');
+    console.log('Decoded credentials:', credentials);
+    
+    const [phone, password] = credentials.split(':');
+    console.log('Phone:', phone, 'Password:', password);
 
     if (!phone || !password) {
       req.user = null;
       req.isAdmin = false;
-
+      console.log('Invalid credentials format - isAdmin: false');
       return next();
     }
 
@@ -35,27 +37,33 @@ const authMiddleware = async (req, res, next) => {
       where: { phone },
     });
 
+    console.log('User found:', user ? 'YES' : 'NO');
+
     if (!user) {
       req.user = null;
       req.isAdmin = false;
-
+      console.log('User not found in database - isAdmin: false');
       return next();
     }
+
+    console.log('Stored password:', user.password);
+    console.log('Provided password:', password);
+    console.log('Passwords match:', user.password === password);
 
     if (user.password !== password) {
       req.user = null;
       req.isAdmin = false;
-
+      console.log('Password mismatch - isAdmin: false');
       return next();
     }
 
     req.user = user;
     req.isAdmin = true;
-
+    console.log('✅ User authenticated successfully:', phone, '- isAdmin: true');
+    
     next();
   } catch (error) {
-    console.error("❌ Auth middleware error:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error('❌ Auth middleware error:', error);
     req.user = null;
     req.isAdmin = false;
     next();
@@ -108,14 +116,15 @@ router.post(
 
       const imageUrls = req.uploadedFiles?.images || [];
 
-      // ✅ FIXED: Handle categoryIds as array from FormData
       let parsedCategoryIds = [];
       if (categoryIds) {
-        // categoryIds will be an array when sent from FormData
-        if (Array.isArray(categoryIds)) {
+        if (typeof categoryIds === "string") {
+          parsedCategoryIds = categoryIds
+            .split(",")
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0);
+        } else if (Array.isArray(categoryIds)) {
           parsedCategoryIds = categoryIds;
-        } else if (typeof categoryIds === "string") {
-          parsedCategoryIds = [categoryIds];
         }
       }
 
@@ -148,6 +157,7 @@ router.post(
       }
 
       const validStatus = status === "inactive" ? "inactive" : "active";
+      console.log('Creating product with status:', validStatus);
 
       const product = await prisma.products.create({
         data: {
@@ -203,42 +213,51 @@ router.post(
 );
 
 // Get all products
-router.get("/products", async (req, res) => {
+router.get('/products', async (req, res) => {
   try {
+    console.log('\n========== GET /products ==========');
+    console.log('isAdmin:', req.isAdmin);
+    console.log('User:', req.user ? req.user.phone : 'NO USER');
+    
     let where = {};
-
+    
     if (!req.isAdmin) {
-      where.status = "active";
+      where.status = 'active';
+      console.log('Fetching only ACTIVE products');
     } else {
+      console.log('Fetching ALL products (active + inactive)');
     }
 
+    console.log('Query where clause:', JSON.stringify(where));
+    
     const products = await prisma.products.findMany({ where });
-
-    const activeCount = products.filter((p) => p.status === "active").length;
-    const inactiveCount = products.filter(
-      (p) => p.status === "inactive"
-    ).length;
-
+    
+    console.log('Total products found:', products.length);
+    const activeCount = products.filter(p => p.status === 'active').length;
+    const inactiveCount = products.filter(p => p.status === 'inactive').length;
+    console.log('Active:', activeCount, 'Inactive:', inactiveCount);
+    console.log('====================================\n');
+    
     res.status(200).json(products);
   } catch (error) {
-    console.error("Error fetching products:", error);
+    console.error('Error fetching products:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // Get product by ID
-router.get("/products/:id", async (req, res) => {
+router.get('/products/:id', async (req, res) => {
   try {
     const product = await prisma.products.findUnique({
       where: { id: req.params.id },
     });
 
     if (!product) {
-      return res.status(404).json({ error: "Product not found" });
+      return res.status(404).json({ error: 'Product not found' });
     }
 
-    if (!req.isAdmin && product.status !== "active") {
-      return res.status(404).json({ error: "Product not found" });
+    if (!req.isAdmin && product.status !== 'active') {
+      return res.status(404).json({ error: 'Product not found' });
     }
 
     res.status(200).json(product);
@@ -247,15 +266,14 @@ router.get("/products/:id", async (req, res) => {
   }
 });
 
-
-
+// Update product
 router.put(
-  "/products/:id",
-  upload.fields([{ name: "images", maxCount: 5 }]),
+  '/products/:id',
+  upload.fields([{ name: 'images', maxCount: 5 }]),
   processAndUploadImages([
     {
-      fieldName: "images",
-      folder: "products",
+      fieldName: 'images',
+      folder: 'products',
       maxCount: 5,
     },
   ]),
@@ -263,9 +281,15 @@ router.put(
     try {
       const { categoryIds, status, ...updateData } = req.body;
 
+      console.log('Update Request Received:');
+      console.log('Product ID:', req.params.id);
+      console.log('Category IDs:', categoryIds);
+      console.log('Status:', status);
+      console.log('Update Data:', updateData);
+
       if (!req.params.id) {
         return res.status(400).json({
-          error: "Product ID is required",
+          error: 'Product ID is required',
         });
       }
 
@@ -290,58 +314,51 @@ router.put(
 
       // Handle boolean fields
       if (updateData.priceIncludesTax !== undefined) {
-        updateData.priceIncludesTax =
-          updateData.priceIncludesTax === "true" ||
-          updateData.priceIncludesTax === true;
+        updateData.priceIncludesTax = updateData.priceIncludesTax === 'true' || updateData.priceIncludesTax === true;
       }
       if (updateData.shippingIncluded !== undefined) {
-        updateData.shippingIncluded =
-          updateData.shippingIncluded === "true" ||
-          updateData.shippingIncluded === true;
+        updateData.shippingIncluded = updateData.shippingIncluded === 'true' || updateData.shippingIncluded === true;
       }
       if (updateData.shippingCalculatedAtCheckout !== undefined) {
-        updateData.shippingCalculatedAtCheckout =
-          updateData.shippingCalculatedAtCheckout === "true" ||
-          updateData.shippingCalculatedAtCheckout === true;
+        updateData.shippingCalculatedAtCheckout = updateData.shippingCalculatedAtCheckout === 'true' || updateData.shippingCalculatedAtCheckout === true;
       }
       if (updateData.storePurchaseOnly !== undefined) {
-        updateData.storePurchaseOnly =
-          updateData.storePurchaseOnly === "true" ||
-          updateData.storePurchaseOnly === true;
+        updateData.storePurchaseOnly = updateData.storePurchaseOnly === 'true' || updateData.storePurchaseOnly === true;
       }
       if (updateData.stylePincodePrompt !== undefined) {
-        updateData.stylePincodePrompt =
-          updateData.stylePincodePrompt === "true" ||
-          updateData.stylePincodePrompt === true;
+        updateData.stylePincodePrompt = updateData.stylePincodePrompt === 'true' || updateData.stylePincodePrompt === true;
       }
 
       // Process features array
       if (updateData.features) {
-        if (typeof updateData.features === "string") {
+        if (typeof updateData.features === 'string') {
           updateData.features = updateData.features
-            .split(",")
-            .map((f) => f.trim())
-            .filter((f) => f.length > 0);
+            .split(',')
+            .map(f => f.trim())
+            .filter(f => f.length > 0);
         }
       }
 
       // Validate and set status
       if (status !== undefined) {
-        updateData.status = status === "inactive" ? "inactive" : "active";
+        updateData.status = status === 'inactive' ? 'inactive' : 'active';
+        console.log('Updating status to:', updateData.status);
       }
 
       if (categoryIds !== undefined && categoryIds.length > 0) {
         let parsedCategoryIds = [];
 
-        if (typeof categoryIds === "string") {
+        if (typeof categoryIds === 'string') {
           try {
             parsedCategoryIds = JSON.parse(categoryIds);
           } catch (e) {
-            parsedCategoryIds = categoryIds.split(",").map((id) => id.trim());
+            parsedCategoryIds = categoryIds.split(',').map(id => id.trim());
           }
         } else if (Array.isArray(categoryIds)) {
           parsedCategoryIds = categoryIds;
         }
+
+        console.log('Parsed Category IDs:', parsedCategoryIds);
 
         // Find existing categories
         const existingCategories = await prisma.categories.findMany({
@@ -350,12 +367,15 @@ router.put(
           },
         });
 
+        console.log('Found Categories:', existingCategories.length);
+        console.log('Found IDs:', existingCategories.map(c => c.id));
+
         // ONLY use valid categories
-        const validCategoryIds = existingCategories.map((c) => c.id);
+        const validCategoryIds = existingCategories.map(c => c.id);
 
         if (validCategoryIds.length === 0) {
           return res.status(400).json({
-            error: "No valid categories found",
+            error: 'No valid categories found',
           });
         }
 
@@ -363,13 +383,11 @@ router.put(
 
         // Warn if some categories were invalid
         if (validCategoryIds.length < parsedCategoryIds.length) {
-          console.warn(
-            `⚠️ Warning: ${
-              parsedCategoryIds.length - validCategoryIds.length
-            } categories not found, using only valid ones`
-          );
+          console.warn(`⚠️ Warning: ${parsedCategoryIds.length - validCategoryIds.length} categories not found, using only valid ones`);
         }
       }
+
+      console.log('Final Update Data:', updateData);
 
       const product = await prisma.products.update({
         where: { id: req.params.id },
@@ -378,17 +396,17 @@ router.put(
 
       res.status(200).json({
         success: true,
-        message: "Product updated successfully",
+        message: 'Product updated successfully',
         product,
         uploadedImages: newImageUrls,
-        note: "Some categories were not found and were skipped",
+        note: 'Some categories were not found and were skipped',
       });
     } catch (error) {
-      console.error("Product update error:", error);
+      console.error('Product update error:', error);
       res.status(500).json({
         error: error.message,
-        details: "Failed to update product",
-        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+        details: 'Failed to update product',
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       });
     }
   }
@@ -499,26 +517,16 @@ router.get("/categories/:categoryId/products", async (req, res) => {
       },
     });
 
-    // Filter by status on application level
-    let filteredProducts = products;
-    
-    if (!req.isAdmin) {
-      filteredProducts = products.filter(p => p.status === "active");
-    }
-
-    if (filteredProducts.length === 0) {
+    if (products.length === 0) {
       return res.status(404).json({
         error: "No products found in this category",
       });
     }
 
-    res.status(200).json(filteredProducts);
+    res.status(200).json(products);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
-
-
-
 
 export default router;
