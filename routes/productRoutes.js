@@ -247,7 +247,6 @@ router.get("/products/:id", async (req, res) => {
   }
 });
 
-// Update product
 router.put(
   "/products/:id",
   upload.fields([{ name: "images", maxCount: 5 }]),
@@ -488,7 +487,6 @@ router.delete("/products/:id", async (req, res) => {
 });
 
 // Get products by category
-
 router.get("/categories/:categoryId/products", async (req, res) => {
   try {
     const products = await prisma.products.findMany({
@@ -496,21 +494,27 @@ router.get("/categories/:categoryId/products", async (req, res) => {
         categoryIds: {
           has: req.params.categoryId,
         },
-        // ✅ FIXED: Only return active products for non-admin users
-        status: req.isAdmin ? undefined : "active",
       },
     });
 
-    if (products.length === 0) {
+    // Filter by status on application level
+    let filteredProducts = products;
+    
+    if (!req.isAdmin) {
+      filteredProducts = products.filter(p => p.status === "active");
+    }
+
+    if (filteredProducts.length === 0) {
       return res.status(404).json({
         error: "No products found in this category",
       });
     }
 
-    res.status(200).json(products);
+    res.status(200).json(filteredProducts);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 export default router;
