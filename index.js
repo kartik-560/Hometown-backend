@@ -13,25 +13,25 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Image upload route
-app.use(
-  "/imageUpload",
-  upload.fields([{ name: "images", maxCount: 5 }]),
-  processAndUploadImages([
-    {
-      fieldName: "images",
-      folder: "image-upload",
-      maxCount: 5,
-    },
-  ]),
-  async (req, res) => {
-    console.log("req.uploadedFiles:", req.uploadedFiles);
-    res.status(201).json({
-      success: true,
-      message: "Image uploaded successfully",
-      uploadedFiles: req.uploadedFiles,
-    });
-  }
-);
+// app.use(
+//   "/imageUpload",
+//   upload.fields([{ name: "images", maxCount: 5 }]),
+//   processAndUploadImages([
+//     {
+//       fieldName: "images",
+//       folder: "image-upload",
+//       maxCount: 5,
+//     },
+//   ]),
+//   async (req, res) => {
+//     console.log("req.uploadedFiles:", req.uploadedFiles);
+//     res.status(201).json({
+//       success: true,
+//       message: "Image uploaded successfully",
+//       uploadedFiles: req.uploadedFiles,
+//     });
+//   }
+// );
 
 // API routes
 app.use("/api", userRoutes);
