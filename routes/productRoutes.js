@@ -5,6 +5,65 @@ import { upload, processAndUploadImages } from "../middleware/imageUpload.js";
 const router = express.Router();
 const prisma = new PrismaClient();
 
+const authMiddleware = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Basic ")) {
+      req.user = null;
+      req.isAdmin = false;
+
+      return next();
+    }
+
+    const base64Credentials = authHeader.slice(6);
+
+    const credentials = Buffer.from(base64Credentials, "base64").toString(
+      "utf8"
+    );
+
+    const [phone, password] = credentials.split(":");
+
+    if (!phone || !password) {
+      req.user = null;
+      req.isAdmin = false;
+
+      return next();
+    }
+
+    const user = await prisma.users.findUnique({
+      where: { phone },
+    });
+
+    if (!user) {
+      req.user = null;
+      req.isAdmin = false;
+
+      return next();
+    }
+
+    if (user.password !== password) {
+      req.user = null;
+      req.isAdmin = false;
+
+      return next();
+    }
+
+    req.user = user;
+    req.isAdmin = true;
+
+    next();
+  } catch (error) {
+    console.error("❌ Auth middleware error:", error.message);
+    console.error("Error stack:", error.stack);
+    req.user = null;
+    req.isAdmin = false;
+    next();
+  }
+};
+
+router.use(authMiddleware);
+
 router.post(
   "/products",
   upload.fields([{ name: "images", maxCount: 5 }]),
@@ -40,6 +99,7 @@ router.post(
         returnAndCancellationPolicy,
         stylePincodePrompt,
         features,
+        status,
       } = req.body;
 
       if (!name) {
@@ -48,19 +108,17 @@ router.post(
 
       const imageUrls = req.uploadedFiles?.images || [];
 
+      // ✅ FIXED: Handle categoryIds as array from FormData
       let parsedCategoryIds = [];
       if (categoryIds) {
-        if (typeof categoryIds === "string") {
-          parsedCategoryIds = categoryIds
-            .split(",")
-            .map((id) => id.trim())
-            .filter((id) => id.length > 0);
-        } else if (Array.isArray(categoryIds)) {
+        // categoryIds will be an array when sent from FormData
+        if (Array.isArray(categoryIds)) {
           parsedCategoryIds = categoryIds;
+        } else if (typeof categoryIds === "string") {
+          parsedCategoryIds = [categoryIds];
         }
       }
 
-      // ✅ CHANGED: $in to in
       if (parsedCategoryIds.length > 0) {
         const existingCategories = await prisma.categories.findMany({
           where: {
@@ -88,6 +146,8 @@ router.post(
           parsedFeatures = features;
         }
       }
+
+      const validStatus = status === "inactive" ? "inactive" : "active";
 
       const product = await prisma.products.create({
         data: {
@@ -122,6 +182,7 @@ router.post(
             stylePincodePrompt === "true" || stylePincodePrompt === true,
           imageUrls: imageUrls.length > 0 ? imageUrls : [],
           features: parsedFeatures,
+          status: validStatus,
         },
       });
 
@@ -144,9 +205,23 @@ router.post(
 // Get all products
 router.get("/products", async (req, res) => {
   try {
-    const products = await prisma.products.findMany();
+    let where = {};
+
+    if (!req.isAdmin) {
+      where.status = "active";
+    } else {
+    }
+
+    const products = await prisma.products.findMany({ where });
+
+    const activeCount = products.filter((p) => p.status === "active").length;
+    const inactiveCount = products.filter(
+      (p) => p.status === "inactive"
+    ).length;
+
     res.status(200).json(products);
   } catch (error) {
+    console.error("Error fetching products:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -162,6 +237,10 @@ router.get("/products/:id", async (req, res) => {
       return res.status(404).json({ error: "Product not found" });
     }
 
+    if (!req.isAdmin && product.status !== "active") {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
     res.status(200).json(product);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -170,27 +249,22 @@ router.get("/products/:id", async (req, res) => {
 
 // Update product
 router.put(
-  '/products/:id',
-  upload.fields([{ name: 'images', maxCount: 5 }]),
+  "/products/:id",
+  upload.fields([{ name: "images", maxCount: 5 }]),
   processAndUploadImages([
     {
-      fieldName: 'images',
-      folder: 'products',
+      fieldName: "images",
+      folder: "products",
       maxCount: 5,
     },
   ]),
   async (req, res) => {
     try {
-      const { categoryIds, ...updateData } = req.body;
-
-      console.log('Update Request Received:');
-      console.log('Product ID:', req.params.id);
-      console.log('Category IDs:', categoryIds);
-      console.log('Update Data:', updateData);
+      const { categoryIds, status, ...updateData } = req.body;
 
       if (!req.params.id) {
         return res.status(400).json({
-          error: 'Product ID is required',
+          error: "Product ID is required",
         });
       }
 
@@ -215,46 +289,58 @@ router.put(
 
       // Handle boolean fields
       if (updateData.priceIncludesTax !== undefined) {
-        updateData.priceIncludesTax = updateData.priceIncludesTax === 'true' || updateData.priceIncludesTax === true;
+        updateData.priceIncludesTax =
+          updateData.priceIncludesTax === "true" ||
+          updateData.priceIncludesTax === true;
       }
       if (updateData.shippingIncluded !== undefined) {
-        updateData.shippingIncluded = updateData.shippingIncluded === 'true' || updateData.shippingIncluded === true;
+        updateData.shippingIncluded =
+          updateData.shippingIncluded === "true" ||
+          updateData.shippingIncluded === true;
       }
       if (updateData.shippingCalculatedAtCheckout !== undefined) {
-        updateData.shippingCalculatedAtCheckout = updateData.shippingCalculatedAtCheckout === 'true' || updateData.shippingCalculatedAtCheckout === true;
+        updateData.shippingCalculatedAtCheckout =
+          updateData.shippingCalculatedAtCheckout === "true" ||
+          updateData.shippingCalculatedAtCheckout === true;
       }
       if (updateData.storePurchaseOnly !== undefined) {
-        updateData.storePurchaseOnly = updateData.storePurchaseOnly === 'true' || updateData.storePurchaseOnly === true;
+        updateData.storePurchaseOnly =
+          updateData.storePurchaseOnly === "true" ||
+          updateData.storePurchaseOnly === true;
       }
       if (updateData.stylePincodePrompt !== undefined) {
-        updateData.stylePincodePrompt = updateData.stylePincodePrompt === 'true' || updateData.stylePincodePrompt === true;
+        updateData.stylePincodePrompt =
+          updateData.stylePincodePrompt === "true" ||
+          updateData.stylePincodePrompt === true;
       }
 
       // Process features array
       if (updateData.features) {
-        if (typeof updateData.features === 'string') {
+        if (typeof updateData.features === "string") {
           updateData.features = updateData.features
-            .split(',')
-            .map(f => f.trim())
-            .filter(f => f.length > 0);
+            .split(",")
+            .map((f) => f.trim())
+            .filter((f) => f.length > 0);
         }
       }
 
-      // ✅ FIXED: Filter valid categories instead of rejecting
+      // Validate and set status
+      if (status !== undefined) {
+        updateData.status = status === "inactive" ? "inactive" : "active";
+      }
+
       if (categoryIds !== undefined && categoryIds.length > 0) {
         let parsedCategoryIds = [];
 
-        if (typeof categoryIds === 'string') {
+        if (typeof categoryIds === "string") {
           try {
             parsedCategoryIds = JSON.parse(categoryIds);
           } catch (e) {
-            parsedCategoryIds = categoryIds.split(',').map(id => id.trim());
+            parsedCategoryIds = categoryIds.split(",").map((id) => id.trim());
           }
         } else if (Array.isArray(categoryIds)) {
           parsedCategoryIds = categoryIds;
         }
-
-        console.log('Parsed Category IDs:', parsedCategoryIds);
 
         // Find existing categories
         const existingCategories = await prisma.categories.findMany({
@@ -263,15 +349,12 @@ router.put(
           },
         });
 
-        console.log('Found Categories:', existingCategories.length);
-        console.log('Found IDs:', existingCategories.map(c => c.id));
-
-        // ✅ ONLY use valid categories
-        const validCategoryIds = existingCategories.map(c => c.id);
+        // ONLY use valid categories
+        const validCategoryIds = existingCategories.map((c) => c.id);
 
         if (validCategoryIds.length === 0) {
           return res.status(400).json({
-            error: 'No valid categories found',
+            error: "No valid categories found",
           });
         }
 
@@ -279,11 +362,13 @@ router.put(
 
         // Warn if some categories were invalid
         if (validCategoryIds.length < parsedCategoryIds.length) {
-          console.warn(`⚠️ Warning: ${parsedCategoryIds.length - validCategoryIds.length} categories not found, using only valid ones`);
+          console.warn(
+            `⚠️ Warning: ${
+              parsedCategoryIds.length - validCategoryIds.length
+            } categories not found, using only valid ones`
+          );
         }
       }
-
-      console.log('Final Update Data:', updateData);
 
       const product = await prisma.products.update({
         where: { id: req.params.id },
@@ -292,25 +377,22 @@ router.put(
 
       res.status(200).json({
         success: true,
-        message: 'Product updated successfully',
+        message: "Product updated successfully",
         product,
         uploadedImages: newImageUrls,
-        note: 'Some categories were not found and were skipped',
+        note: "Some categories were not found and were skipped",
       });
     } catch (error) {
-      console.error('Product update error:', error);
+      console.error("Product update error:", error);
       res.status(500).json({
         error: error.message,
-        details: 'Failed to update product',
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        details: "Failed to update product",
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
       });
     }
   }
 );
 
-
-
-// Add category to product
 router.post(
   "/products/:productId/add-category/:categoryId",
   async (req, res) => {
@@ -406,6 +488,7 @@ router.delete("/products/:id", async (req, res) => {
 });
 
 // Get products by category
+
 router.get("/categories/:categoryId/products", async (req, res) => {
   try {
     const products = await prisma.products.findMany({
@@ -413,6 +496,8 @@ router.get("/categories/:categoryId/products", async (req, res) => {
         categoryIds: {
           has: req.params.categoryId,
         },
+        // ✅ FIXED: Only return active products for non-admin users
+        status: req.isAdmin ? undefined : "active",
       },
     });
 

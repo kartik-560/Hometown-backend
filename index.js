@@ -24,7 +24,6 @@ app.use(
     },
   ]),
   async (req, res) => {
-    console.log("req.uploadedFiles:", req.uploadedFiles);
     res.status(201).json({
       success: true,
       message: "Image uploaded successfully",

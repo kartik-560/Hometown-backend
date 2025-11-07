@@ -23,13 +23,13 @@ export async function uploadImage(buffer, folder) {
                     if (error) {
                         reject(error);
                     } else {
-                        console.log(result, "result");
+                   
                         resolve(result);
                     }
                 }
             );
 
-            console.log(compressedImageBuffer, "compressed image Buffer")
+          
             uploadStream.end(compressedImageBuffer);
         });
     } catch (error) {

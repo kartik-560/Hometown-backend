@@ -18,7 +18,7 @@ const upload = multer({
     }
 });
 
-// console.log(upload, "from imageUpload")
+
 // Middleware to process and upload images to Cloudinary
 export const processAndUploadImages = (fieldConfigs) => {
     return async (req, res, next) => {
@@ -34,7 +34,7 @@ export const processAndUploadImages = (fieldConfigs) => {
                         try {
                             const result = await
 uploadImage(file.buffer, folder);
-                            // console.log(result, "result from image UPload")
+                            
                             uploadedUrls.push(result.secure_url);
                         } catch (uploadError) {
                             console.error(`Failed to upload
