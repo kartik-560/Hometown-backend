@@ -1,22 +1,45 @@
 import express from "express";
-import dotenv from "dotenv";
+import cors from "cors";
+import userRoutes from "./routes/user.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
-
-dotenv.config();
+import { processAndUploadImages, upload } from "./middleware/imageUpload.js";
 
 const app = express();
+
+// ✅ Middleware in correct order
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ✅ Image upload endpoint
+app.use(
+  "/imageUpload",
+  upload.fields([{ name: "images", maxCount: 5 }]),
+  processAndUploadImages([
+    {
+      fieldName: "images",
+      folder: "image-upload",
+      maxCount: 5,
+    },
+  ]),
+  async (req, res) => {
+    console.log("req.uploadedFiles:", req.uploadedFiles);
+    res.status(201).json({
+      success: true,
+      message: "Image uploaded successfully",
+      uploadedFiles: req.uploadedFiles,
+    });
+  }
+);
+
+// ✅ Register routes AFTER middleware
+app.use("/api", userRoutes);
+app.use("/api", categoryRoutes);
+app.use("/api", productRoutes);
+
 const PORT = process.env.PORT || 5000;
 
-app.use(express.json());
-
-app.use("/api/categories", categoryRoutes);
-app.use("/api/products", productRoutes);
-
-app.get("/", (req, res) => {
-  res.send("API is running...");
-});
-
 app.listen(PORT, () => {
-  console.log(`Server is live at http://localhost:${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
