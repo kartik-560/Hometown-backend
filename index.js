@@ -13,35 +13,34 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Image upload route
-// app.use(
-//   "/imageUpload",
-//   upload.fields([{ name: "images", maxCount: 5 }]),
-//   processAndUploadImages([
-//     {
-//       fieldName: "images",
-//       folder: "image-upload",
-//       maxCount: 5,
-//     },
-//   ]),
-//   async (req, res) => {
-//     console.log("req.uploadedFiles:", req.uploadedFiles);
-//     res.status(201).json({
-//       success: true,
-//       message: "Image uploaded successfully",
-//       uploadedFiles: req.uploadedFiles,
-//     });
-//   }
-// );
+app.use(
+  "/imageUpload",
+  upload.fields([{ name: "images", maxCount: 5 }]),
+  processAndUploadImages([
+    {
+      fieldName: "images",
+      folder: "image-upload",
+      maxCount: 5,
+    },
+  ]),
+  async (req, res) => {
+    console.log("req.uploadedFiles:", req.uploadedFiles);
+    res.status(201).json({
+      success: true,
+      message: "Image uploaded successfully",
+      uploadedFiles: req.uploadedFiles,
+    });
+  }
+);
 
 // API routes
 app.use("/api", userRoutes);
 app.use("/api", categoryRoutes);
 app.use("/api", productRoutes);
 
-// ✅ Default route
-app.get("/", (req, res) => {
-  res.send("Backend running on Vercel");
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
 });
-
 
 export default app;
