@@ -7,12 +7,12 @@ import { processAndUploadImages, upload } from "./middleware/imageUpload.js";
 
 const app = express();
 
-// ✅ Middleware in correct order
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Image upload endpoint
+// Image upload route
 app.use(
   "/imageUpload",
   upload.fields([{ name: "images", maxCount: 5 }]),
@@ -33,13 +33,15 @@ app.use(
   }
 );
 
-// ✅ Register routes AFTER middleware
+// API routes
 app.use("/api", userRoutes);
 app.use("/api", categoryRoutes);
 app.use("/api", productRoutes);
 
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+// ✅ Default route
+app.get("/", (req, res) => {
+  res.send("Backend running on Vercel");
 });
+
+
+export default app;
