@@ -215,9 +215,9 @@ router.post(
 // Get all products
 router.get('/products', async (req, res) => {
   try {
-    console.log('\n========== GET /products ==========');
-    console.log('isAdmin:', req.isAdmin);
-    console.log('User:', req.user ? req.user.phone : 'NO USER');
+    // console.log('\n========== GET /products ==========');
+    // console.log('isAdmin:', req.isAdmin);
+    // console.log('User:', req.user ? req.user.phone : 'NO USER');
     
     let where = {};
     
@@ -228,15 +228,15 @@ router.get('/products', async (req, res) => {
       console.log('Fetching ALL products (active + inactive)');
     }
 
-    console.log('Query where clause:', JSON.stringify(where));
+    // console.log('Query where clause:', JSON.stringify(where));
     
     const products = await prisma.products.findMany({ where });
     
-    console.log('Total products found:', products.length);
+    // console.log('Total products found:', products.length);
     const activeCount = products.filter(p => p.status === 'active').length;
     const inactiveCount = products.filter(p => p.status === 'inactive').length;
-    console.log('Active:', activeCount, 'Inactive:', inactiveCount);
-    console.log('====================================\n');
+    // console.log('Active:', activeCount, 'Inactive:', inactiveCount);
+    // console.log('====================================\n');
     
     res.status(200).json(products);
   } catch (error) {
@@ -267,150 +267,298 @@ router.get('/products/:id', async (req, res) => {
 });
 
 // Update product
+// router.put(
+//   '/products/:id',
+//   upload.fields([{ name: 'images', maxCount: 5 }]),
+//   processAndUploadImages([
+//     {
+//       fieldName: 'images',
+//       folder: 'products',
+//       maxCount: 5,
+//     },
+//   ]),
+//   async (req, res) => {
+//     try {
+//       const { categoryIds, status, ...updateData } = req.body;
+
+//       console.log('Update Request Received:');
+//       console.log('Product ID:', req.params.id);
+//       console.log('Category IDs:', categoryIds);
+//       console.log('Status:', status);
+//       console.log('Update Data:', updateData);
+
+//       if (!req.params.id) {
+//         return res.status(400).json({
+//           error: 'Product ID is required',
+//         });
+//       }
+
+//       const newImageUrls = req.uploadedFiles?.images || [];
+//       if (newImageUrls.length > 0) {
+//         updateData.imageUrls = newImageUrls;
+//       }
+
+//       // Process numeric fields
+//       if (updateData.originalPrice) {
+//         updateData.originalPrice = Number(updateData.originalPrice);
+//       }
+//       if (updateData.discountedPrice) {
+//         updateData.discountedPrice = Number(updateData.discountedPrice);
+//       }
+//       if (updateData.discountPercentage) {
+//         updateData.discountPercentage = Number(updateData.discountPercentage);
+//       }
+//       if (updateData.seaterCount) {
+//         updateData.seaterCount = Number(updateData.seaterCount);
+//       }
+
+//       // Handle boolean fields
+//       if (updateData.priceIncludesTax !== undefined) {
+//         updateData.priceIncludesTax = updateData.priceIncludesTax === 'true' || updateData.priceIncludesTax === true;
+//       }
+//       if (updateData.shippingIncluded !== undefined) {
+//         updateData.shippingIncluded = updateData.shippingIncluded === 'true' || updateData.shippingIncluded === true;
+//       }
+//       if (updateData.shippingCalculatedAtCheckout !== undefined) {
+//         updateData.shippingCalculatedAtCheckout = updateData.shippingCalculatedAtCheckout === 'true' || updateData.shippingCalculatedAtCheckout === true;
+//       }
+//       if (updateData.storePurchaseOnly !== undefined) {
+//         updateData.storePurchaseOnly = updateData.storePurchaseOnly === 'true' || updateData.storePurchaseOnly === true;
+//       }
+//       if (updateData.stylePincodePrompt !== undefined) {
+//         updateData.stylePincodePrompt = updateData.stylePincodePrompt === 'true' || updateData.stylePincodePrompt === true;
+//       }
+
+//       // Process features array
+//       if (updateData.features) {
+//         if (typeof updateData.features === 'string') {
+//           updateData.features = updateData.features
+//             .split(',')
+//             .map(f => f.trim())
+//             .filter(f => f.length > 0);
+//         }
+//       }
+
+//       // Validate and set status
+//       if (status !== undefined) {
+//         updateData.status = status === 'inactive' ? 'inactive' : 'active';
+//         console.log('Updating status to:', updateData.status);
+//       }
+
+//       if (categoryIds !== undefined && categoryIds.length > 0) {
+//         let parsedCategoryIds = [];
+
+//         if (typeof categoryIds === 'string') {
+//           try {
+//             parsedCategoryIds = JSON.parse(categoryIds);
+//           } catch (e) {
+//             parsedCategoryIds = categoryIds.split(',').map(id => id.trim());
+//           }
+//         } else if (Array.isArray(categoryIds)) {
+//           parsedCategoryIds = categoryIds;
+//         }
+
+//         console.log('Parsed Category IDs:', parsedCategoryIds);
+
+//         // Find existing categories
+//         const existingCategories = await prisma.categories.findMany({
+//           where: {
+//             id: { in: parsedCategoryIds },
+//           },
+//         });
+
+//         console.log('Found Categories:', existingCategories.length);
+//         console.log('Found IDs:', existingCategories.map(c => c.id));
+
+//         // ONLY use valid categories
+//         const validCategoryIds = existingCategories.map(c => c.id);
+
+//         if (validCategoryIds.length === 0) {
+//           return res.status(400).json({
+//             error: 'No valid categories found',
+//           });
+//         }
+
+//         updateData.categoryIds = validCategoryIds;
+
+//         // Warn if some categories were invalid
+//         if (validCategoryIds.length < parsedCategoryIds.length) {
+//           console.warn(`⚠️ Warning: ${parsedCategoryIds.length - validCategoryIds.length} categories not found, using only valid ones`);
+//         }
+//       }
+
+//       console.log('Final Update Data:', updateData);
+
+//       const product = await prisma.products.update({
+//         where: { id: req.params.id },
+//         data: updateData,
+//       });
+
+//       res.status(200).json({
+//         success: true,
+//         message: 'Product updated successfully',
+//         product,
+//         uploadedImages: newImageUrls,
+//         note: 'Some categories were not found and were skipped',
+//       });
+//     } catch (error) {
+//       console.error('Product update error:', error);
+//       res.status(500).json({
+//         error: error.message,
+//         details: 'Failed to update product',
+//         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+//       });
+//     }
+//   }
+// );
+
 router.put(
-  '/products/:id',
-  upload.fields([{ name: 'images', maxCount: 5 }]),
+  "/products/:id",
+  upload.fields([{ name: "images", maxCount: 5 }]),
   processAndUploadImages([
     {
-      fieldName: 'images',
-      folder: 'products',
+      fieldName: "images",
+      folder: "products",
       maxCount: 5,
     },
   ]),
   async (req, res) => {
     try {
-      const { categoryIds, status, ...updateData } = req.body;
+      const {
+        name,
+        brand,
+        categoryIds,
+        originalPrice,
+        discountedPrice,
+        discountPercentage,
+        priceIncludesTax,
+        shippingIncluded,
+        shippingCalculatedAtCheckout,
+        storePurchaseOnly,
+        seaterCount,
+        color,
+        material,
+        warrantyPeriod,
+        delivery,
+        installation,
+        stockStatus,
+        note,
+        productCareInstructions,
+        returnAndCancellationPolicy,
+        stylePincodePrompt,
+        features,
+        status,
+        existingImageUrls, // ⬅️ This comes from FormData (frontend), NOT from database
+      } = req.body;
 
-      console.log('Update Request Received:');
-      console.log('Product ID:', req.params.id);
-      console.log('Category IDs:', categoryIds);
-      console.log('Status:', status);
-      console.log('Update Data:', updateData);
-
-      if (!req.params.id) {
-        return res.status(400).json({
-          error: 'Product ID is required',
-        });
-      }
-
+      // Get newly uploaded images from multer
       const newImageUrls = req.uploadedFiles?.images || [];
-      if (newImageUrls.length > 0) {
-        updateData.imageUrls = newImageUrls;
-      }
 
-      // Process numeric fields
-      if (updateData.originalPrice) {
-        updateData.originalPrice = Number(updateData.originalPrice);
-      }
-      if (updateData.discountedPrice) {
-        updateData.discountedPrice = Number(updateData.discountedPrice);
-      }
-      if (updateData.discountPercentage) {
-        updateData.discountPercentage = Number(updateData.discountPercentage);
-      }
-      if (updateData.seaterCount) {
-        updateData.seaterCount = Number(updateData.seaterCount);
-      }
-
-      // Handle boolean fields
-      if (updateData.priceIncludesTax !== undefined) {
-        updateData.priceIncludesTax = updateData.priceIncludesTax === 'true' || updateData.priceIncludesTax === true;
-      }
-      if (updateData.shippingIncluded !== undefined) {
-        updateData.shippingIncluded = updateData.shippingIncluded === 'true' || updateData.shippingIncluded === true;
-      }
-      if (updateData.shippingCalculatedAtCheckout !== undefined) {
-        updateData.shippingCalculatedAtCheckout = updateData.shippingCalculatedAtCheckout === 'true' || updateData.shippingCalculatedAtCheckout === true;
-      }
-      if (updateData.storePurchaseOnly !== undefined) {
-        updateData.storePurchaseOnly = updateData.storePurchaseOnly === 'true' || updateData.storePurchaseOnly === true;
-      }
-      if (updateData.stylePincodePrompt !== undefined) {
-        updateData.stylePincodePrompt = updateData.stylePincodePrompt === 'true' || updateData.stylePincodePrompt === true;
-      }
-
-      // Process features array
-      if (updateData.features) {
-        if (typeof updateData.features === 'string') {
-          updateData.features = updateData.features
-            .split(',')
-            .map(f => f.trim())
-            .filter(f => f.length > 0);
+      // Parse the existing images that user wants to KEEP (sent from frontend)
+      let existingImages = [];
+      if (existingImageUrls) {
+        try {
+          existingImages = JSON.parse(existingImageUrls);
+        } catch (error) {
+          console.error('Error parsing existingImageUrls:', error);
+          existingImages = [];
         }
       }
 
-      // Validate and set status
-      if (status !== undefined) {
-        updateData.status = status === 'inactive' ? 'inactive' : 'active';
-        console.log('Updating status to:', updateData.status);
+      // Combine: kept existing images + newly uploaded images
+      const allImageUrls = [...existingImages, ...newImageUrls];
+
+      // Validate we have at least one image
+      if (allImageUrls.length === 0) {
+        return res.status(400).json({ 
+          error: "Product must have at least one image" 
+        });
       }
 
-      if (categoryIds !== undefined && categoryIds.length > 0) {
-        let parsedCategoryIds = [];
-
-        if (typeof categoryIds === 'string') {
-          try {
-            parsedCategoryIds = JSON.parse(categoryIds);
-          } catch (e) {
-            parsedCategoryIds = categoryIds.split(',').map(id => id.trim());
-          }
+      // Parse categoryIds
+      let parsedCategoryIds = [];
+      if (categoryIds) {
+        if (typeof categoryIds === "string") {
+          parsedCategoryIds = categoryIds
+            .split(",")
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0);
         } else if (Array.isArray(categoryIds)) {
           parsedCategoryIds = categoryIds;
         }
+      }
 
-        console.log('Parsed Category IDs:', parsedCategoryIds);
-
-        // Find existing categories
-        const existingCategories = await prisma.categories.findMany({
-          where: {
-            id: { in: parsedCategoryIds },
-          },
-        });
-
-        console.log('Found Categories:', existingCategories.length);
-        console.log('Found IDs:', existingCategories.map(c => c.id));
-
-        // ONLY use valid categories
-        const validCategoryIds = existingCategories.map(c => c.id);
-
-        if (validCategoryIds.length === 0) {
-          return res.status(400).json({
-            error: 'No valid categories found',
-          });
-        }
-
-        updateData.categoryIds = validCategoryIds;
-
-        // Warn if some categories were invalid
-        if (validCategoryIds.length < parsedCategoryIds.length) {
-          console.warn(`⚠️ Warning: ${parsedCategoryIds.length - validCategoryIds.length} categories not found, using only valid ones`);
+      // Parse features
+      let parsedFeatures = [];
+      if (features) {
+        if (typeof features === "string") {
+          parsedFeatures = features
+            .split(",")
+            .map((f) => f.trim())
+            .filter((f) => f.length > 0);
+        } else if (Array.isArray(features)) {
+          parsedFeatures = features;
         }
       }
 
-      console.log('Final Update Data:', updateData);
+      const validStatus = status === "inactive" ? "inactive" : "active";
 
+      // Update the product with merged images
       const product = await prisma.products.update({
         where: { id: req.params.id },
-        data: updateData,
+        data: {
+          name,
+          brand: brand || null,
+          categoryIds: parsedCategoryIds,
+          originalPrice: originalPrice ? Number(originalPrice) : null,
+          discountedPrice: discountedPrice ? Number(discountedPrice) : null,
+          discountPercentage: discountPercentage
+            ? Number(discountPercentage)
+            : null,
+          priceIncludesTax:
+            priceIncludesTax === "true" || priceIncludesTax === true,
+          shippingIncluded:
+            shippingIncluded === "true" || shippingIncluded === true,
+          shippingCalculatedAtCheckout:
+            shippingCalculatedAtCheckout === "true" ||
+            shippingCalculatedAtCheckout === true,
+          storePurchaseOnly:
+            storePurchaseOnly === "true" || storePurchaseOnly === true,
+          seaterCount: seaterCount ? Number(seaterCount) : null,
+          color: color || null,
+          material: material || null,
+          warrantyPeriod: warrantyPeriod || null,
+          delivery: delivery || null,
+          installation: installation || null,
+          stockStatus: stockStatus || null,
+          note: note || null,
+          productCareInstructions: productCareInstructions || null,
+          returnAndCancellationPolicy: returnAndCancellationPolicy || null,
+          stylePincodePrompt:
+            stylePincodePrompt === "true" || stylePincodePrompt === true,
+          imageUrls: allImageUrls, // ⬅️ This IS the database field - merged array
+          features: parsedFeatures,
+          status: validStatus,
+        },
       });
 
       res.status(200).json({
         success: true,
-        message: 'Product updated successfully',
+        message: "Product updated successfully",
         product,
         uploadedImages: newImageUrls,
-        note: 'Some categories were not found and were skipped',
+        totalImages: allImageUrls.length,
       });
     } catch (error) {
-      console.error('Product update error:', error);
+      console.error("Product update error:", error);
       res.status(500).json({
         error: error.message,
-        details: 'Failed to update product',
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        details: "Failed to update product",
       });
     }
   }
 );
+
 
 router.post(
   "/products/:productId/add-category/:categoryId",
