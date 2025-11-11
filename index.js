@@ -37,6 +37,11 @@ app.use("/api", userRoutes);
 app.use("/api", categoryRoutes);
 app.use("/api", productRoutes);
 
+app.get("/", (req, res) => {
+  res.send("✅ Server is running fine on Vercel!");
+});
+
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
